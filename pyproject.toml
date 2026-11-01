@@ -1,0 +1,44 @@
+[project]
+name = "lightsmith-adda"
+version = "0.1.0"
+description = "ADDA (discrete dipole approximation) backend for lightsmith, run as an external executable."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Alexander Feghali", email = "alexander.al-feghali@mail.mcgill.ca" }
+]
+requires-python = ">=3.10"
+keywords = ["dda", "adda", "discrete dipole approximation", "scattering", "lightsmith"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "lightsmith>=0.1",
+    "numpy>=2.0",
+    "pydantic>=2.6",
+]
+
+[project.entry-points."lightsmith.backends"]
+adda = "lightsmith_adda:AddaBackend"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.uv.sources]
+lightsmith = { path = "../PlasmonHub", editable = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "adda: needs the ADDA executable (on PATH or via LIGHTSMITH_ADDA)",
+]
