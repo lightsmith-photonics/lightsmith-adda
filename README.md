@@ -11,7 +11,8 @@ ADDA (GPL-3) only through files and a subprocess, and it does not bundle ADDA.
 1. Get ADDA (prebuilt Windows binaries are on the
    [releases page](https://github.com/adda-team/adda/releases); on Linux and macOS, build from source).
 2. Put `adda` (or `adda_ocl` / `adda_mpi`) on `PATH`, or set `LIGHTSMITH_ADDA` to the full path of the executable.
-3. Install this package next to lightsmith, e.g. `uv pip install git+https://github.com/lightsmith-photonics/lightsmith-adda`.
+3. Install this package next to lightsmith, e.g. `uv pip install --no-sources git+https://github.com/lightsmith-photonics/lightsmith-adda`
+   (`--no-sources`: the `../lightsmith` path in `pyproject.toml` is for development; plain `pip install git+...` works too).
 
 ```console
 $ lightsmith backends      # lists "adda" (method "dda"); "available" is false until step 2 is done
