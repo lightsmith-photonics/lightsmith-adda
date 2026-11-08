@@ -257,6 +257,53 @@ def test_solve_pipeline_with_fake_adda(fake_adda):
     assert not any("dipole size" in w for w in res.warnings), res.warnings
 
 
+def test_discretization_is_the_lattice_written_for_adda(fake_adda, monkeypatch):
+    def no_run(*a, **k):
+        raise AssertionError("discretization() must not run ADDA")
+
+    monkeypatch.setattr("lightsmith_adda.backend.subprocess.run", no_run)
+    centre = np.array([10.0, -5.0, 3.0])
+    sim = ls.Simulation(particles=[ls.Particle(shape=ls.Sphere(radius_nm=40.0), material=DIELECTRIC,
+                                               position_nm=tuple(centre))],
+                        medium_index=1.33, wavelengths=[500.0], options={"adda": {"dipoles_per_diameter": 12}})
+    d = ls.discretization(sim, "adda")
+    assert d["backend"] == "adda" and d["layout_kind"] == "dipole_lattice" and d["error"] is None, d["error"]
+    p = d["payload"]
+    vox = AddaBackend._voxels(sim, AddaBackend.options(sim)[0])
+    est = ls.estimate(sim, method="adda")
+    assert p["n_dipoles"] == vox.n_dip == est["dipoles"] == d["summary"]["dipoles"]
+    assert p["grid"] == list(vox.grid) == est["grid"] and p["dipoles_per_diameter"] == 12
+    assert p["spacing_nm"] == pytest.approx(est["dipole_spacing_nm"]) and p["stride"] == 1
+    pts = np.asarray(p["points_nm"])
+    assert pts.shape == (vox.n_dip, 3) and set(p["material_slot"]) == {0}
+    # Placed where the particle is, inside it, and spaced by ADDA's dipole size along the lattice axes.
+    np.testing.assert_allclose(pts.mean(axis=0), centre, atol=0.5)
+    assert np.linalg.norm(pts - centre, axis=1).max() < 40.0
+    steps = np.diff(np.unique(np.round(pts[:, 0], 3)))
+    np.testing.assert_allclose(steps, p["spacing_nm"], rtol=1e-3)
+
+
+def test_discretization_layers_rotation_and_size_limit(fake_adda):
+    vox_sim = layered_sim(npd=16)
+    p = ls.discretization(vox_sim, "adda")["payload"]
+    pts, slot = np.asarray(p["points_nm"]), np.asarray(p["material_slot"])
+    r = np.linalg.norm(pts, axis=1)
+    assert p["domains"] == 2 and set(slot) == {0, 1}
+    assert r[slot == 0].max() < 25.0 + p["spacing_nm"] < r[slot == 1].max()
+    # Light along x polarized along z: ADDA's frame has the long axis on y, but the points stay in lightsmith
+    # coordinates, where the spheroid's long axis is z.
+    rod = ls.Simulation(
+        particles=[ls.Particle(shape=ls.Spheroid(semi_axis_xy_nm=10, semi_axis_z_nm=30), material=DIELECTRIC)],
+        illumination=ls.PlaneWave(direction=(1, 0, 0), polarization=(0, 0, 1)), wavelengths=[500.0])
+    pts = np.asarray(ls.discretization(rod, "adda")["payload"]["points_nm"])
+    extent = pts.max(axis=0) - pts.min(axis=0)
+    assert extent[2] > 2.5 * extent[0] and extent[2] > 2.5 * extent[1]
+    # Over max_dipoles: the lattice is still shown, with the refusal solve() would give.
+    big = sphere_sim(options={"dda": {"dipoles_per_diameter": 12}, "adda": {"max_dipoles": 10}})
+    d = ls.discretization(big, "adda")
+    assert d["layout_kind"] == "dipole_lattice" and "max_dipoles" in d["error"]
+
+
 def test_orientation_average_pipeline_with_fake_adda(fake_adda):
     res = ls.solve(sphere_sim(orientation_average=True, wavelengths=[500.0]), method="adda")
     assert res.provenance["polarization"].startswith("orientation averaged")

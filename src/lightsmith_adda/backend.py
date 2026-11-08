@@ -33,6 +33,7 @@ from .output import avg_params_text, parse_version, read_cross_sections, read_lo
 
 ENV_VAR = "LIGHTSMITH_ADDA"
 EXECUTABLES = ("adda", "adda_ocl", "adda_mpi")
+MAX_POINTS = 20_000  # dipole positions listed by discretization(), as lightsmith.discretize: subsampled beyond
 
 
 class AddaOptions(BaseModel):
@@ -140,6 +141,30 @@ class AddaBackend(Backend):
                 "domains": len(vox.materials), "memory_bytes": int(mem), "memory_note": "rough upper bound",
                 "solves": len(sim.wavelength_array()), "fits": vox.n_dip <= opts.max_dipoles,
                 "executable": find_executable(opts.executable)}
+
+    @classmethod
+    def discretization(cls, sim: Simulation, device: Device) -> dict:
+        """The dipole lattice ADDA will be given (``lightsmith.discretization``): the voxelisation written to the
+        shape file, at ADDA's dipole size, in lightsmith coordinates. Never runs ADDA."""
+        opts, warnings = cls.options(sim)
+        npd = opts.dipoles_per_diameter or default_dipoles_per_diameter(sim)
+        vox = cls._voxels(sim, opts)
+        pts = vox.points_nm()
+        stride = max(1, math.ceil(len(pts) / MAX_POINTS))
+        grid = list(vox.grid)
+        payload = {"spacing_nm": vox.d, "dipoles_per_diameter": int(npd), "grid": grid, "n_dipoles": vox.n_dip,
+                   "stride": stride, "points_nm": np.round(pts[::stride], 3).tolist(),
+                   "material_slot": (vox.domain[::stride] - 1).tolist(), "discretization": "center",
+                   "extrapolate": None, "domains": len(vox.materials), "volume_correction": opts.volume_correction,
+                   "incident_frame": vox.frame.tolist()}
+        summary = {"dipoles": vox.n_dip, "spacing (nm)": round(vox.d, 4), "dipoles per diameter": int(npd),
+                   "lattice": " × ".join(map(str, grid)), "discretization": "center", "domains": len(vox.materials)}
+        error = None
+        if vox.n_dip > opts.max_dipoles:
+            error = (f"{vox.n_dip} dipoles exceeds max_dipoles={opts.max_dipoles}; "
+                     "lower dipoles_per_diameter or raise max_dipoles")
+        return {"layout_kind": "dipole_lattice", "summary": summary, "payload": payload, "warnings": warnings,
+                "error": error}
 
     @classmethod
     def command(cls, exe: str, shape_file: str | Path, vox: Voxels, wavelength_nm: float, sim: Simulation,

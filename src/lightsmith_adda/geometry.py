@@ -30,10 +30,18 @@ class Voxels:
     materials: list  # Material per domain (index = domain - 1)
     d: float  # dipole size in nm
     frame: np.ndarray = field(default_factory=lambda: np.eye(3))
+    centre_nm: np.ndarray = field(default_factory=lambda: np.zeros(3))  # lattice centre, ADDA frame
+    lattice: tuple[int, int, int] | None = None  # voxelised box (ijk index ranges), before trimming to dipoles
 
     @property
     def n_dip(self) -> int:
         return int(len(self.ijk))
+
+    def points_nm(self) -> np.ndarray:
+        """(N, 3) dipole centres in lightsmith coordinates, spaced by ADDA's dipole size ``d`` around the
+        voxelised box's centre: the lattice ADDA simulates, placed where the particles are."""
+        n = np.asarray(self.lattice if self.lattice is not None else self.ijk.max(axis=0) + 1, float)
+        return (np.asarray(self.centre_nm, float) + (self.ijk - (n - 1) / 2) * self.d) @ self.frame
 
     @property
     def grid(self) -> tuple[int, int, int]:
@@ -131,7 +139,8 @@ def voxelise(sim: Simulation, dipoles_per_diameter: int, frame: np.ndarray | Non
     ijk = np.argwhere(occupied)
     domain = slot_to_domain[slot[occupied]]
     d = (sum(p.shape.volume() for p in sim.particles) / n_dip) ** (1 / 3) if volume_correction else d0
-    return Voxels(ijk=ijk, domain=domain, materials=domains, d=float(d), frame=frame)
+    return Voxels(ijk=ijk, domain=domain, materials=domains, d=float(d), frame=frame, centre_nm=centre,
+                  lattice=tuple(int(v) for v in n))
 
 
 def write_shape_file(path: str | Path, vox: Voxels, comment: str = "") -> Path:

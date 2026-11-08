@@ -1,6 +1,6 @@
 # lightsmith-adda
 
-An [lightsmith](../../README.md) backend that runs [ADDA](https://github.com/adda-team/adda), the
+A [lightsmith](https://github.com/lightsmith-photonics/lightsmith) backend that runs [ADDA](https://github.com/adda-team/adda), the
 discrete dipole approximation code by Yurkin and Hoekstra, as an external executable.
 
 **License: GPL-3.0-or-later.** This plugin is kept outside the MIT lightsmith core. It talks to
@@ -11,7 +11,7 @@ ADDA (GPL-3) only through files and a subprocess, and it does not bundle ADDA.
 1. Get ADDA (prebuilt Windows binaries are on the
    [releases page](https://github.com/adda-team/adda/releases); on Linux and macOS, build from source).
 2. Put `adda` (or `adda_ocl` / `adda_mpi`) on `PATH`, or set `LIGHTSMITH_ADDA` to the full path of the executable.
-3. Install this package next to lightsmith, e.g. `uv pip install ./plugins/lightsmith-adda`.
+3. Install this package next to lightsmith, e.g. `uv pip install git+https://github.com/lightsmith-photonics/lightsmith-adda`.
 
 ```console
 $ lightsmith backends      # lists "adda" (method "dda"); "available" is false until step 2 is done
@@ -65,12 +65,15 @@ Other keys are ignored with a warning.
 Provenance records the executable, the ADDA version (from the log, else `adda -V`), every command line,
 the dipole count and grid, iterations per run, and the polarizability and iterative method from ADDA's log.
 
+`ls.discretization(sim, method="adda")` returns the dipole lattice written to the shape file, without running
+ADDA: the occupied sites in lightsmith coordinates at ADDA's dipole size, with one material slot per domain.
+
 Not supported: substrate (ADDA's `-surf` assumes vacuum above the surface), near-field and far-field outputs.
 
 ## Develop
 
 ```console
-cd plugins/lightsmith-adda
+cd lightsmith-adda            # next to a lightsmith checkout in ../lightsmith (tool.uv.sources)
 uv sync
 uv run pytest                 # tests needing the real ADDA are skipped when it is absent
 uv run lightsmith backends   # shows the "adda" backend
